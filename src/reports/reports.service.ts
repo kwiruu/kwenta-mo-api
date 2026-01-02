@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import * as ExcelJS from "exceljs";
 
 @Injectable()
 export class ReportsService {
@@ -478,8 +479,256 @@ export class ReportsService {
       filter[field] = { ...filter[field], gte: new Date(startDate) };
     }
     if (endDate) {
-      filter[field] = { ...filter[field], lte: new Date(endDate) };
+      const endDateTime = new Date(endDate);
+      endDateTime.setHours(23, 59, 59, 999);
+      filter[field] = { ...filter[field], lte: endDateTime };
     }
     return filter;
+  }
+
+  // Export Excel
+  async exportExcel(
+    userId: string,
+    type: "sales" | "expenses",
+    startDate?: string,
+    endDate?: string
+  ): Promise<Buffer> {
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "Kwenta Mo";
+    workbook.created = new Date();
+
+    // Get business information
+    const business = await this.prisma.business.findUnique({
+      where: { userId },
+    });
+    const businessName = business?.businessName || "My Business";
+
+    if (type === "sales") {
+      const dateFilter = this.buildDateFilter(startDate, endDate, "saleDate");
+      const sales = await this.prisma.sale.findMany({
+        where: { userId, ...dateFilter },
+        include: { recipe: true },
+        orderBy: { saleDate: "desc" },
+      });
+
+      const worksheet = workbook.addWorksheet("Sales Report");
+
+      // Add business name
+      worksheet.mergeCells("A1:G1");
+      const businessCell = worksheet.getCell("A1");
+      businessCell.value = businessName;
+      businessCell.font = { size: 18, bold: true };
+      businessCell.alignment = { horizontal: "center" };
+
+      // Add title
+      worksheet.mergeCells("A2:G2");
+      const titleCell = worksheet.getCell("A2");
+      titleCell.value = "Sales Report";
+      titleCell.font = { size: 14, bold: true };
+      titleCell.alignment = { horizontal: "center" };
+
+      // Add date range
+      worksheet.mergeCells("A3:G3");
+      const dateRangeCell = worksheet.getCell("A3");
+      dateRangeCell.value = `Period: ${startDate || "All time"} to ${endDate || "Present"}`;
+      dateRangeCell.alignment = { horizontal: "center" };
+
+      // Add headers
+      const headerRow = worksheet.addRow([
+        "Date",
+        "Recipe",
+        "Quantity",
+        "Unit Price (₱)",
+        "Total Price (₱)",
+        "COGS (₱)",
+        "Profit (₱)",
+      ]);
+      headerRow.font = { bold: true };
+      headerRow.eachCell((cell) => {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FF4A7C59" },
+        };
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        cell.border = {
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
+
+      // Add data rows
+      let totalRevenue = 0;
+      let totalCOGS = 0;
+      let totalProfit = 0;
+
+      sales.forEach((s) => {
+        const row = worksheet.addRow([
+          s.saleDate.toISOString().split("T")[0],
+          s.recipe.name,
+          s.quantity,
+          Number(s.unitPrice),
+          Number(s.totalPrice),
+          Number(s.costOfGoods),
+          Number(s.profit),
+        ]);
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          };
+        });
+
+        totalRevenue += Number(s.totalPrice);
+        totalCOGS += Number(s.costOfGoods);
+        totalProfit += Number(s.profit);
+      });
+
+      // Add totals row
+      worksheet.addRow([]);
+      const totalsRow = worksheet.addRow([
+        "TOTAL",
+        "",
+        "",
+        "",
+        totalRevenue,
+        totalCOGS,
+        totalProfit,
+      ]);
+      totalsRow.font = { bold: true };
+      totalsRow.eachCell((cell, colNumber) => {
+        if (colNumber >= 5) {
+          cell.numFmt = "₱#,##0.00";
+        }
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFE8F5E9" },
+        };
+      });
+
+      // Format currency columns
+      worksheet.getColumn(4).numFmt = "₱#,##0.00";
+      worksheet.getColumn(5).numFmt = "₱#,##0.00";
+      worksheet.getColumn(6).numFmt = "₱#,##0.00";
+      worksheet.getColumn(7).numFmt = "₱#,##0.00";
+
+      // Auto-fit columns
+      worksheet.columns.forEach((column) => {
+        column.width = 15;
+      });
+      worksheet.getColumn(2).width = 25;
+    } else if (type === "expenses") {
+      const dateFilter = this.buildDateFilter(
+        startDate,
+        endDate,
+        "expenseDate"
+      );
+      const expenses = await this.prisma.expense.findMany({
+        where: { userId, ...dateFilter },
+        orderBy: { expenseDate: "desc" },
+      });
+
+      const worksheet = workbook.addWorksheet("Expenses Report");
+
+      // Add business name
+      worksheet.mergeCells("A1:E1");
+      const businessCell = worksheet.getCell("A1");
+      businessCell.value = businessName;
+      businessCell.font = { size: 18, bold: true };
+      businessCell.alignment = { horizontal: "center" };
+
+      // Add title
+      worksheet.mergeCells("A2:E2");
+      const titleCell = worksheet.getCell("A2");
+      titleCell.value = "Expenses Report";
+      titleCell.font = { size: 14, bold: true };
+      titleCell.alignment = { horizontal: "center" };
+
+      // Add date range
+      worksheet.mergeCells("A3:E3");
+      const dateRangeCell = worksheet.getCell("A3");
+      dateRangeCell.value = `Period: ${startDate || "All time"} to ${endDate || "Present"}`;
+      dateRangeCell.alignment = { horizontal: "center" };
+
+      // Add headers
+      const headerRow = worksheet.addRow([
+        "Date",
+        "Category",
+        "Description",
+        "Amount (₱)",
+        "Notes",
+      ]);
+      headerRow.font = { bold: true };
+      headerRow.eachCell((cell) => {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFDC3545" },
+        };
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        cell.border = {
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
+
+      // Add data rows
+      let totalExpenses = 0;
+
+      expenses.forEach((e) => {
+        const row = worksheet.addRow([
+          e.expenseDate.toISOString().split("T")[0],
+          e.category,
+          e.description,
+          Number(e.amount),
+          e.notes || "",
+        ]);
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          };
+        });
+
+        totalExpenses += Number(e.amount);
+      });
+
+      // Add totals row
+      worksheet.addRow([]);
+      const totalsRow = worksheet.addRow(["TOTAL", "", "", totalExpenses, ""]);
+      totalsRow.font = { bold: true };
+      totalsRow.eachCell((cell, colNumber) => {
+        if (colNumber === 4) {
+          cell.numFmt = "₱#,##0.00";
+        }
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFFCE4EC" },
+        };
+      });
+
+      // Format currency column
+      worksheet.getColumn(4).numFmt = "₱#,##0.00";
+
+      // Auto-fit columns
+      worksheet.getColumn(1).width = 15;
+      worksheet.getColumn(2).width = 18;
+      worksheet.getColumn(3).width = 30;
+      worksheet.getColumn(4).width = 15;
+      worksheet.getColumn(5).width = 30;
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
   }
 }

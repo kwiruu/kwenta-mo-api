@@ -108,4 +108,31 @@ export class ReportsController {
     );
     res.send(csv);
   }
+
+  // Export as Excel
+  @Get("export/excel")
+  async exportExcel(
+    @Request() req: any,
+    @Res() res: Response,
+    @Query("type") type: "sales" | "expenses",
+    @Query("startDate") startDate?: string,
+    @Query("endDate") endDate?: string
+  ) {
+    const buffer = await this.reportsService.exportExcel(
+      req.user.id,
+      type,
+      startDate,
+      endDate
+    );
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=${type}-report-${new Date().toISOString().split("T")[0]}.xlsx`
+    );
+    res.send(buffer);
+  }
 }

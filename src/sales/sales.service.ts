@@ -50,8 +50,11 @@ export class SalesService {
       userId,
       dto.recipeId
     );
+
+    // Use provided unitPrice or fetch from recipe
+    const unitPrice = dto.unitPrice ?? costData.sellingPrice;
     const costOfGoods = costData.totalCost * dto.quantity;
-    const totalPrice = dto.unitPrice * dto.quantity;
+    const totalPrice = unitPrice * dto.quantity;
     const profit = totalPrice - costOfGoods;
 
     return this.prisma.sale.create({
@@ -59,7 +62,7 @@ export class SalesService {
         userId,
         recipeId: dto.recipeId,
         quantity: dto.quantity,
-        unitPrice: dto.unitPrice,
+        unitPrice,
         totalPrice,
         costOfGoods,
         profit,

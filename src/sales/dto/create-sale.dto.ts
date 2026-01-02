@@ -14,9 +14,10 @@ export class CreateSaleDto {
   @Min(1)
   quantity: number;
 
+  @IsOptional()
   @IsNumber()
   @Min(0)
-  unitPrice: number;
+  unitPrice?: number;
 
   @IsOptional()
   @IsDateString()

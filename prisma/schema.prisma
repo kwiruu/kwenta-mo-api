@@ -35,6 +35,9 @@ model Business {
   businessName      String   @map("business_name")
   businessType      String?  @map("business_type")
   address           String?
+  phone             String?
+  taxId             String?  @map("tax_id")
+  currency          String   @default("PHP")
   employeeCount     Int?     @map("employee_count")
   avgMonthlySales   Decimal? @map("avg_monthly_sales") @db.Decimal(12, 2)
   rawMaterialSource String?  @map("raw_material_source")
@@ -71,19 +74,20 @@ model Ingredient {
 
 // Recipes
 model Recipe {
-  id            String   @id @default(uuid())
-  userId        String   @map("user_id")
-  name          String
-  description   String?
-  category      String?
-  servings      Int      @default(1)
-  sellingPrice  Decimal  @map("selling_price") @db.Decimal(10, 2)
-  laborCost     Decimal  @default(0) @map("labor_cost") @db.Decimal(10, 2)
-  overheadCost  Decimal  @default(0) @map("overhead_cost") @db.Decimal(10, 2)
-  imageUrl      String?  @map("image_url")
-  isActive      Boolean  @default(true) @map("is_active")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  name             String
+  description      String?
+  category         String?
+  servings         Int      @default(1)
+  preparationTime  Int?     @map("preparation_time") // in minutes
+  sellingPrice     Decimal  @map("selling_price") @db.Decimal(10, 2)
+  laborCost        Decimal  @default(0) @map("labor_cost") @db.Decimal(10, 2)
+  overheadCost     Decimal  @default(0) @map("overhead_cost") @db.Decimal(10, 2)
+  imageUrl         String?  @map("image_url")
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   // Relations
   user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -134,21 +138,30 @@ model Sale {
 
 // Expenses
 model Expense {
-  id          String        @id @default(uuid())
-  userId      String        @map("user_id")
+  id          String          @id @default(uuid())
+  userId      String          @map("user_id")
   category    ExpenseCategory
   description String
-  amount      Decimal       @db.Decimal(10, 2)
-  expenseDate DateTime      @map("expense_date")
-  receiptUrl  String?       @map("receipt_url")
+  amount      Decimal         @db.Decimal(10, 2)
+  frequency   ExpenseFrequency @default(MONTHLY)
+  expenseDate DateTime        @map("expense_date")
+  receiptUrl  String?         @map("receipt_url")
   notes       String?
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("expenses")
+}
+
+enum ExpenseFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
 }
 
 enum ExpenseCategory {

@@ -12,19 +12,28 @@ export class ExpensesService {
     userId: string,
     filters: { category?: string; startDate?: string; endDate?: string }
   ) {
+    const where: any = { userId };
+
+    // Add category filter
+    if (filters.category) {
+      where.category = filters.category as ExpenseCategory;
+    }
+
+    // Add date range filter
+    if (filters.startDate || filters.endDate) {
+      where.expenseDate = {};
+      if (filters.startDate) {
+        where.expenseDate.gte = new Date(filters.startDate);
+      }
+      if (filters.endDate) {
+        const endDate = new Date(filters.endDate);
+        endDate.setHours(23, 59, 59, 999);
+        where.expenseDate.lte = endDate;
+      }
+    }
+
     return this.prisma.expense.findMany({
-      where: {
-        userId,
-        ...(filters.category && {
-          category: filters.category as ExpenseCategory,
-        }),
-        ...(filters.startDate && {
-          expenseDate: { gte: new Date(filters.startDate) },
-        }),
-        ...(filters.endDate && {
-          expenseDate: { lte: new Date(filters.endDate) },
-        }),
-      },
+      where,
       orderBy: { expenseDate: "desc" },
     });
   }
@@ -88,11 +97,22 @@ export class ExpensesService {
   }
 
   async getStats(userId: string, startDate?: string, endDate?: string) {
-    const where = {
+    const where: any = {
       userId,
-      ...(startDate && { expenseDate: { gte: new Date(startDate) } }),
-      ...(endDate && { expenseDate: { lte: new Date(endDate) } }),
     };
+
+    // Add date range filter if provided
+    if (startDate || endDate) {
+      where.expenseDate = {};
+      if (startDate) {
+        where.expenseDate.gte = new Date(startDate);
+      }
+      if (endDate) {
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        where.expenseDate.lte = endDateTime;
+      }
+    }
 
     // Total expenses
     const total = await this.prisma.expense.aggregate({
@@ -110,11 +130,10 @@ export class ExpensesService {
     });
 
     return {
-      totalExpenses: Number(total._sum.amount) || 0,
-      expenseCount: total._count,
+      total: Number(total._sum.amount) || 0,
       byCategory: byCategory.map((c) => ({
         category: c.category,
-        total: Number(c._sum.amount) || 0,
+        amount: Number(c._sum.amount) || 0,
         count: c._count,
       })),
     };
