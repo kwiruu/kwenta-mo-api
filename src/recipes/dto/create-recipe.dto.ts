@@ -17,8 +17,9 @@ export class RecipeIngredientDto {
   @Min(0)
   quantity: number;
 
+  @IsOptional()
   @IsString()
-  unit: string;
+  unit?: string; // If not provided, will use ingredient's default unit
 
   @IsOptional()
   @IsString()
@@ -41,6 +42,11 @@ export class CreateRecipeDto {
   @IsNumber()
   @Min(1)
   servings?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  preparationTime?: number;
 
   @IsNumber()
   @Min(0)

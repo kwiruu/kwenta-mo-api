@@ -78,17 +78,38 @@ export class RecipesService {
   async create(userId: string, dto: CreateRecipeDto) {
     const { ingredients, ...recipeData } = dto;
 
+    // If ingredients provided, fetch their default units if not specified
+    let ingredientData: {
+      ingredientId: string;
+      quantity: number;
+      unit: string;
+      notes?: string;
+    }[] = [];
+
+    if (ingredients && ingredients.length > 0) {
+      // Fetch all ingredients to get their default units
+      const ingredientIds = ingredients.map((i) => i.ingredientId);
+      const dbIngredients = await this.prisma.ingredient.findMany({
+        where: { id: { in: ingredientIds }, userId },
+        select: { id: true, unit: true },
+      });
+
+      const unitMap = new Map(dbIngredients.map((i) => [i.id, i.unit]));
+
+      ingredientData = ingredients.map((ing) => ({
+        ingredientId: ing.ingredientId,
+        quantity: ing.quantity,
+        unit: ing.unit || unitMap.get(ing.ingredientId) || "unit",
+        notes: ing.notes,
+      }));
+    }
+
     return this.prisma.recipe.create({
       data: {
         userId,
         ...recipeData,
         ingredients: {
-          create: ingredients?.map((ing) => ({
-            ingredientId: ing.ingredientId,
-            quantity: ing.quantity,
-            unit: ing.unit,
-            notes: ing.notes,
-          })),
+          create: ingredientData,
         },
       },
       include: {
@@ -105,27 +126,44 @@ export class RecipesService {
     const { ingredients, ...recipeData } = dto;
 
     // If ingredients are provided, replace all
-    if (ingredients) {
+    if (ingredients && ingredients.length > 0) {
       await this.prisma.recipeIngredient.deleteMany({
         where: { recipeId: id },
+      });
+
+      // Fetch all ingredients to get their default units if not specified
+      const ingredientIds = ingredients.map((i) => i.ingredientId);
+      const dbIngredients = await this.prisma.ingredient.findMany({
+        where: { id: { in: ingredientIds }, userId },
+        select: { id: true, unit: true },
+      });
+
+      const unitMap = new Map(dbIngredients.map((i) => [i.id, i.unit]));
+
+      return this.prisma.recipe.update({
+        where: { id },
+        data: {
+          ...recipeData,
+          ingredients: {
+            create: ingredients.map((ing) => ({
+              ingredientId: ing.ingredientId,
+              quantity: ing.quantity,
+              unit: ing.unit || unitMap.get(ing.ingredientId) || "unit",
+              notes: ing.notes,
+            })),
+          },
+        },
+        include: {
+          ingredients: {
+            include: { ingredient: true },
+          },
+        },
       });
     }
 
     return this.prisma.recipe.update({
       where: { id },
-      data: {
-        ...recipeData,
-        ...(ingredients && {
-          ingredients: {
-            create: ingredients.map((ing) => ({
-              ingredientId: ing.ingredientId,
-              quantity: ing.quantity,
-              unit: ing.unit,
-              notes: ing.notes,
-            })),
-          },
-        }),
-      },
+      data: recipeData,
       include: {
         ingredients: {
           include: { ingredient: true },

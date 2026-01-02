@@ -19,6 +19,14 @@ export enum ExpenseCategory {
   OTHER = "OTHER",
 }
 
+export enum ExpenseFrequency {
+  DAILY = "DAILY",
+  WEEKLY = "WEEKLY",
+  MONTHLY = "MONTHLY",
+  QUARTERLY = "QUARTERLY",
+  YEARLY = "YEARLY",
+}
+
 export class CreateExpenseDto {
   @IsEnum(ExpenseCategory)
   category: ExpenseCategory;
@@ -29,6 +37,10 @@ export class CreateExpenseDto {
   @IsNumber()
   @Min(0)
   amount: number;
+
+  @IsOptional()
+  @IsEnum(ExpenseFrequency)
+  frequency?: ExpenseFrequency;
 
   @IsOptional()
   @IsDateString()
