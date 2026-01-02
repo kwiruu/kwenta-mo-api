@@ -7,12 +7,12 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Enable CORS for frontend
-  const allowedOrigins = [
+  const allowedOrigins: string[] = [
     "http://localhost:5173",
     "http://localhost:3000",
     "https://kwenta-mo.vercel.app",
-    process.env.FRONTEND_URL,
-  ].filter(Boolean);
+    process.env.FRONTEND_URL || "",
+  ].filter((origin): origin is string => Boolean(origin));
 
   app.enableCors({
     origin: allowedOrigins,
